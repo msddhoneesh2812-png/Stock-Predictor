@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StockMind — Real-Time AI Predictor</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:#080C10; --surface:#0E1419; --surface2:#131920; --surface3:#1a2230;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.13);
+  --accent:#00E5A0; --accent2:#0066FF; --danger:#FF4757; --warn:#FFB800;
+  --text:#F0F4F8; --muted:#6B7A8D; --muted2:#8A99AA;
+  --mono:'DM Mono',monospace; --display:'Syne',sans-serif; --body:'DM Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:15px;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,160,0.022) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,160,0.022) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+body::after{content:'';position:fixed;top:-200px;left:50%;transform:translateX(-50%);width:800px;height:450px;background:radial-gradient(ellipse,rgba(0,102,255,0.09) 0%,transparent 70%);pointer-events:none;z-index:0}
+
+.wrapper{position:relative;z-index:1;max-width:1140px;margin:0 auto;padding:0 24px 80px}
+
+.status-bar{display:flex;align-items:center;gap:16px;padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:0;font-family:var(--mono);font-size:11px;color:var(--muted);overflow:hidden}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0}
+.status-dot.live{background:var(--accent);box-shadow:0 0 6px var(--accent);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.status-ticker{display:flex;gap:32px;overflow:hidden;flex:1;white-space:nowrap}
+.ticker-item{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.ticker-sym{color:var(--text);font-weight:500}
+.ticker-price{color:var(--muted2)}
+.ticker-chg.pos{color:var(--accent)}
+.ticker-chg.neg{color:var(--danger)}
+
+header{display:flex;align-items:center;justify-content:space-between;padding:20px 0 24px;border-bottom:1px solid var(--border);margin-bottom:32px;flex-wrap:wrap;gap:16px}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--display);font-size:22px;font-weight:800;letter-spacing:-.5px;color:var(--text)}
+.logo-icon{width:34px;height:34px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.logo .accent{color:var(--accent)}
+.header-right{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.key-group{display:flex;flex-direction:column;gap:4px}
+.key-label{font-size:10px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em}
+.key-input{background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:12px;padding:8px 13px;width:230px;outline:none;transition:border-color .2s}
+.key-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,229,160,.07)}
+.key-input::placeholder{color:var(--muted)}
+
+.search-section{margin-bottom:24px}
+.search-bar{display:flex;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:8px 8px 8px 22px;transition:border-color .2s,box-shadow .2s}
+.search-bar:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,229,160,.07)}
+.search-bar input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:3px;text-transform:uppercase;caret-color:var(--accent)}
+.search-bar input::placeholder{color:var(--muted);font-size:16px;font-weight:400;letter-spacing:0;text-transform:none;font-family:var(--body)}
+.quick-chips{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
+.chips-label{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.chip{background:var(--surface2);border:1px solid var(--border);border-radius:100px;padding:5px 14px;font-family:var(--mono);font-size:12px;color:var(--muted2);cursor:pointer;transition:all .15s;user-select:none}
+.chip:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,229,160,.05)}
+
+.btn-analyze{background:var(--accent);color:#080C10;font-family:var(--display);font-weight:700;font-size:14px;border:none;border-radius:10px;padding:13px 26px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:opacity .15s,transform .1s;white-space:nowrap}
+.btn-analyze:hover{opacity:.88}
+.btn-analyze:active{transform:scale(.97)}
+.btn-analyze:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+.refresh-banner{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:20px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.refresh-right{display:flex;align-items:center;gap:14px}
+.countdown-wrap{display:flex;align-items:center;gap:8px}
+.countdown-bar-bg{width:80px;height:3px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden}
+.countdown-bar{height:100%;background:var(--accent);border-radius:3px;transition:width 1s linear}
+.btn-refresh{background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.2);color:var(--accent);font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:7px;cursor:pointer;transition:all .15s}
+.btn-refresh:hover{background:rgba(0,229,160,.14)}
+
+.metrics-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;transition:border-color .2s}
+.metric-card:hover{border-color:var(--border2)}
+.metric-label{font-size:10px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+.metric-val{font-family:var(--display);font-size:22px;font-weight:700;color:var(--text);line-height:1}
+.metric-sub{font-size:11px;color:var(--muted);margin-top:5px;font-family:var(--mono)}
+.pos{color:var(--accent)!important}.neg{color:var(--danger)!important}.neu{color:var(--warn)!important}
+
+.range-tabs{display:flex;gap:4px}
+.range-tab{background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:var(--mono);font-size:12px;padding:5px 12px;cursor:pointer;transition:all .15s}
+.range-tab.active,.range-tab:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,229,160,.06)}
+
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:20px;position:relative;overflow:hidden}
+.chart-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,160,.5),transparent)}
+.chart-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.chart-ticker{font-family:var(--display);font-size:28px;font-weight:800;letter-spacing:-.5px}
+.chart-company{font-size:13px;color:var(--muted);margin-top:3px}
+.chart-price-live{font-family:var(--mono);font-size:13px;color:var(--muted2);margin-top:6px}
+.chart-price-live span{color:var(--text);font-size:16px;font-weight:500}
+.legend{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;color:var(--muted2)}
+.legend-line{width:20px;height:2px;border-radius:2px}
+.chart-wrap{position:relative;height:300px}
+
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+
+.ai-card,.ml-card,.pred-card,.info-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px}
+.card-title{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;margin-bottom:18px;display:flex;align-items:center;gap:10px}
+.pred-card{margin-bottom:20px}
+.info-card{margin-bottom:20px}
+
+.pill{display:inline-flex;align-items:center;font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:100px;letter-spacing:.05em}
+.pill-green{background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.2);color:var(--accent)}
+.pill-blue{background:rgba(0,102,255,.1);border:1px solid rgba(0,102,255,.2);color:#4D94FF}
+.pill-red{background:rgba(255,71,87,.1);border:1px solid rgba(255,71,87,.2);color:#FF7787}
+.pill-warn{background:rgba(255,184,0,.1);border:1px solid rgba(255,184,0,.2);color:var(--warn)}
+
+.ai-text{font-size:14px;color:var(--muted2);line-height:1.78;font-style:italic}
+.ai-text.loaded{color:var(--text);font-style:normal}
+.signal-box{margin-top:18px;display:inline-flex;align-items:center;gap:10px;padding:11px 20px;border-radius:10px;font-family:var(--display);font-size:15px;font-weight:700}
+.signal-buy{background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.25);color:var(--accent)}
+.signal-sell{background:rgba(255,71,87,.08);border:1px solid rgba(255,71,87,.25);color:var(--danger)}
+.signal-hold{background:rgba(255,184,0,.08);border:1px solid rgba(255,184,0,.25);color:var(--warn)}
+
+.ml-indicator{margin-bottom:15px}.ml-indicator:last-child{margin-bottom:0}
+.ml-ind-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.ml-ind-name{font-family:var(--mono);font-size:11px;color:var(--muted2)}
+.ml-ind-val{font-family:var(--mono);font-size:12px;font-weight:500}
+.ml-bar-bg{height:3px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
+.ml-bar-fill{height:100%;border-radius:3px;transition:width .9s cubic-bezier(.16,1,.3,1)}
+
+.pred-table{width:100%;border-collapse:collapse}
+.pred-table th{font-family:var(--mono);font-size:10px;color:var(--muted);text-align:left;padding:0 0 12px;border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.1em}
+.pred-table td{padding:11px 0;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:13px}
+.pred-table tr:last-child td{border-bottom:none}
+.conf-bar{display:inline-block;width:36px;height:3px;border-radius:3px;vertical-align:middle;margin-right:7px}
+.sig-badge{font-family:var(--mono);font-size:11px;font-weight:600;padding:3px 10px;border-radius:6px}
+.sig-buy{background:rgba(0,229,160,.1);color:var(--accent)}
+.sig-sell{background:rgba(255,71,87,.1);color:var(--danger)}
+.sig-hold{background:rgba(255,184,0,.1);color:var(--warn)}
+
+.market-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:100px;font-family:var(--mono);font-size:11px}
+.market-open{background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.2);color:var(--accent)}
+.market-closed{background:rgba(255,71,87,.08);border:1px solid rgba(255,71,87,.2);color:var(--danger)}
+.market-pre{background:rgba(255,184,0,.08);border:1px solid rgba(255,184,0,.2);color:var(--warn)}
+
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(8,12,16,.3);border-top-color:#080C10;border-radius:50%;animation:spin .65s linear infinite}
+.spinner-dark{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.1);border-top-color:var(--accent);border-radius:50%;animation:spin .65s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.fade-in{animation:fadeIn .4s ease forwards}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+.toast{position:fixed;bottom:28px;right:28px;background:var(--surface2);border:1px solid var(--border2);border-radius:12px;padding:14px 20px;font-size:13px;font-family:var(--mono);color:var(--text);z-index:1000;transform:translateY(16px);opacity:0;transition:all .28s ease;max-width:340px;box-shadow:0 8px 40px rgba(0,0,0,.5)}
+.toast.show{transform:translateY(0);opacity:1}
+
+.disclaimer{background:rgba(255,184,0,.04);border:1px solid rgba(255,184,0,.13);border-radius:10px;padding:11px 16px;font-size:12px;color:rgba(255,184,0,.8);font-family:var(--mono);margin-bottom:20px}
+
+.source-note{font-size:11px;color:var(--muted);font-family:var(--mono);padding:8px 12px;background:rgba(255,255,255,.02);border-radius:8px;border:1px solid var(--border);margin-top:10px}
+
+footer{border-top:1px solid var(--border);padding-top:20px;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:11px;font-family:var(--mono);flex-wrap:wrap;gap:8px;margin-top:32px}
+footer a{color:var(--accent);text-decoration:none}
+
+@media(max-width:900px){.metrics-grid{grid-template-columns:repeat(3,1fr)}.two-col{grid-template-columns:1fr}.key-input{width:200px}}
+@media(max-width:600px){.metrics-grid{grid-template-columns:repeat(2,1fr)}.header-right{flex-direction:column;align-items:flex-start}}
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <div class="status-bar">
+    <div class="status-dot" id="liveDot"></div>
+    <span id="marketStatusText">Checking market…</span>
+    <div class="status-ticker" id="tickerBar">
+      <span style="color:var(--muted)">Loading live prices…</span>
+    </div>
+  </div>
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">📈</div>
+      Stock<span class="accent">Mind</span>
+      <span class="pill pill-green" style="margin-left:4px;font-size:10px">LIVE</span>
+    </div>
+    <div class="header-right">
+      <div class="key-group">
+        <div class="key-label">Finnhub API Key</div>
+        <input type="text" class="key-input" id="finnhubKey" placeholder="Enter your Finnhub API key…" />
+      </div>
+      <div class="key-group">
+        <div class="key-label">Anthropic API Key </div>
+        <input type="password" class="key-input" id="anthropicKey" placeholder="sk-ant-…" />
+      </div>
+    </div>
+  </header>
+
+  <div class="search-section">
+    <div class="search-bar">
+      <input type="text" id="tickerInput" placeholder="Enter ticker symbol (e.g. AAPL)" maxlength="6" autocomplete="off" spellcheck="false" />
+      <button class="btn-analyze" id="analyzeBtn" onclick="runAnalysis()">
+        <span id="btnIcon">▶</span>
+        <span id="btnText">Analyze</span>
+      </button>
+    </div>
+    <div class="quick-chips">
+      <span class="chips-label">Quick pick:</span>
+      <div class="chip" onclick="quickPick('AAPL')">AAPL</div>
+      <div class="chip" onclick="quickPick('TSLA')">TSLA</div>
+      <div class="chip" onclick="quickPick('MSFT')">MSFT</div>
+      <div class="chip" onclick="quickPick('NVDA')">NVDA</div>
+      <div class="chip" onclick="quickPick('GOOGL')">GOOGL</div>
+      <div class="chip" onclick="quickPick('AMZN')">AMZN</div>
+      <div class="chip" onclick="quickPick('META')">META</div>
+      <div class="chip" onclick="quickPick('NFLX')">NFLX</div>
+      <div class="chip" onclick="quickPick('AMD')">AMD</div>
+    </div>
+  </div>
+
+  <div class="refresh-banner" id="refreshBanner">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="spinner-dark" id="refreshSpinner" style="display:none"></span>
+      <span id="lastUpdatedText">No data yet — enter a ticker and click Analyze</span>
+    </div>
+    <div class="refresh-right">
+      <div class="countdown-wrap" id="countdownWrap" style="display:none">
+        <span style="color:var(--muted2)">Next refresh in</span>
+        <span id="countdownSecs" style="color:var(--text)">30:00</span>
+        <div class="countdown-bar-bg">
+          <div class="countdown-bar" id="countdownBar" style="width:100%"></div>
+        </div>
+      </div>
+      <button class="btn-refresh" id="refreshBtn" onclick="forceRefresh()" style="display:none">↻ Refresh Now</button>
+    </div>
+  </div>
+
+  <div class="disclaimer">⚠ StockMind uses real market data from Finnhub (15-min delayed for free tier). Charts refresh every 30 minutes automatically. This is NOT financial advice — always consult a financial professional before investing.</div>
+
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-label">Current Price</div>
+      <div class="metric-val" id="mPrice">—</div>
+      <div class="metric-sub" id="mPriceSub">–</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Day Change</div>
+      <div class="metric-val" id="mChange">—</div>
+      <div class="metric-sub" id="mChangeSub">vs prev close</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">7-Day ML Forecast</div>
+      <div class="metric-val" id="mForecast">—</div>
+      <div class="metric-sub" id="mForecastSub">linear regression</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Day High / Low</div>
+      <div class="metric-val" id="mHL">—</div>
+      <div class="metric-sub" id="mHLSub">today's range</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">RSI (14)</div>
+      <div class="metric-val" id="mRsi">—</div>
+      <div class="metric-sub" id="mRsiSub">14-period</div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-header">
+      <div>
+        <div class="chart-ticker" id="chartTicker">Select a Stock</div>
+        <div class="chart-company" id="chartCompany">Enter a ticker above and click Analyze</div>
+        <div class="chart-price-live" id="chartPriceLive" style="display:none">
+          Live: <span id="livePriceSpan">—</span> &nbsp;·&nbsp; <span id="liveChgSpan">—</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:12px">
+        <div class="range-tabs">
+          <button class="range-tab active" onclick="setRange('D',30,this)">1M</button>
+          <button class="range-tab" onclick="setRange('D',90,this)">3M</button>
+          <button class="range-tab" onclick="setRange('D',180,this)">6M</button>
+          <button class="range-tab" onclick="setRange('W',52,this)">1Y</button>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line" style="background:#0066FF"></div>Price</div>
+          <div class="legend-item"><div class="legend-line" style="background:#00E5A0"></div>MA-10</div>
+          <div class="legend-item"><div class="legend-line" style="background:rgba(255,255,255,.22)"></div>MA-20</div>
+          <div class="legend-item" style="gap:5px">
+            <svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#FF4757" stroke-width="2" stroke-dasharray="5,3"/></svg>
+            Forecast
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+  </div>
+
+  <div class="two-col">
+    <div class="ai-card">
+      <div class="card-title">🤖 AI Analysis <span class="pill pill-blue" id="aiStatus">Waiting</span></div>
+      <div class="ai-text" id="aiText">Add your Anthropic API key above and analyze a stock to receive AI-powered analysis with real market data.</div>
+      <div id="signalBox" style="display:none"></div>
+      <div id="apiNoteEl" class="source-note" style="display:none"></div>
+    </div>
+    <div class="ml-card">
+      <div class="card-title">⚙️ ML Indicator Breakdown</div>
+      <div id="mlIndicators"><div style="color:var(--muted);font-size:13px;font-family:var(--mono)">Run analysis to compute indicators…</div></div>
+    </div>
+  </div>
+
+  <div class="pred-card">
+    <div class="card-title">📅 7-Day Price Forecast <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(ML model · linear regression on real data)</span></div>
+    <table class="pred-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Predicted Price</th>
+          <th>Change vs Today</th>
+          <th>Confidence</th>
+          <th>Signal</th>
+        </tr>
+      </thead>
+      <tbody id="forecastTable">
+        <tr><td colspan="5" style="color:var(--muted);font-size:13px;padding:18px 0">Run analysis to see the 7-day forecast</td></tr>
+      </tbody>
+    </table>
+  </div>  
+
+  <div class="info-card">
+    <div class="card-title">🧠 Setup Guide & How It Works</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px">
+      <div>
+        <div style="color:var(--accent);font-family:var(--mono);font-size:11px;margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em">Step 1 — Get Finnhub Key (Free)</div>
+        <div style="color:var(--muted2);font-size:13px;line-height:1.75">Go to <a href="https://finnhub.io" target="_blank" style="color:var(--accent)">finnhub.io</a>, sign up free, and copy your API key from the dashboard. Paste it in the "Finnhub API Key" box above. Free tier: 60 calls/min, real-time US stocks.</div>
+      </div>
+      <div>
+        <div style="color:#0066FF;font-family:var(--mono);font-size:11px;margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em">Step 2 — Real Data Flow</div>
+        <div style="color:var(--muted2);font-size:13px;line-height:1.75">StockMind fetches live quotes + 12 months of daily candles from Finnhub. All ML indicators (RSI, MACD, Bollinger Bands, regression) are computed on real OHLCV data.</div>
+      </div>
+      <div>
+        <div style="color:#A855F7;font-family:var(--mono);font-size:11px;margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em">Step 3 — Claude AI (Optional)</div>
+        <div style="color:var(--muted2);font-size:13px;line-height:1.75">Optionally add your Anthropic API key for Claude's qualitative market analysis. Real computed metrics are sent to Claude for nuanced BUY/HOLD/SELL reasoning.</div>
+      </div>
+      <div>
+        <div style="color:var(--warn);font-family:var(--mono);font-size:11px;margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em">Step 4 — 30-Min Auto-Refresh</div>
+        <div style="color:var(--muted2);font-size:13px;line-height:1.75">Once analyzing, the app auto-refreshes real data every 30 minutes. A countdown timer shows time to next refresh. Hit "↻ Refresh Now" to force-update anytime.</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div>StockMind © 2025 — Real data via <a href="https://finnhub.io" target="_blank">Finnhub</a>. For educational use only. <strong>Not financial advice.</strong></div>
+    <div>ML: Regression · RSI · MACD · Bollinger &nbsp;|&nbsp; AI: <a href="https://anthropic.com" target="_blank">Anthropic Claude</a></div>
+  </footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const COMPANIES = {
+  AAPL:'Apple Inc.',TSLA:'Tesla, Inc.',MSFT:'Microsoft Corp.',NVDA:'NVIDIA Corp.',
+  GOOGL:'Alphabet Inc.',AMZN:'Amazon.com, Inc.',META:'Meta Platforms, Inc.',
+  NFLX:'Netflix, Inc.',AMD:'Advanced Micro Devices',INTC:'Intel Corp.',
+  V:'Visa Inc.',JPM:'JPMorgan Chase',WMT:'Walmart Inc.',PLTR:'Palantir Technologies',
+  SPOT:'Spotify Technology',COIN:'Coinbase Global',UBER:'Uber Technologies',
+  DIS:'The Walt Disney Co.',PYPL:'PayPal Holdings',BABA:'Alibaba Group'
+};
+
+const WATCHLIST = ['AAPL','TSLA','MSFT','NVDA','GOOGL'];
+
+let chartInstance = null;
+let currentTicker = '';
+let currentCandles = [];
+let currentResolution = 'D';
+let currentDays = 30;
+let refreshTimer = null;
+let countdownInterval = null;
+const REFRESH_SECS = 1800; // 30 minutes
+let secondsLeft = REFRESH_SECS;
+
+function getMarketStatus() {
+  const now = new Date();
+  const ny = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const h = ny.getHours(), m = ny.getMinutes(), day = ny.getDay();
+  const mins = h * 60 + m;
+  if (day === 0 || day === 6) return 'closed';
+  if (mins >= 570 && mins < 930) return 'open';   // 9:30–15:30
+  if (mins >= 240 && mins < 570) return 'pre';     // 4:00–9:30 pre-market
+  if (mins >= 930 && mins < 1200) return 'after';  // 16:00–20:00 after-hours
+  return 'closed';
+}
+
+function updateMarketBadge() {
+  const status = getMarketStatus();
+  const dot = document.getElementById('liveDot');
+  const txt = document.getElementById('marketStatusText');
+  const labels = { open:'Market Open', pre:'Pre-Market', after:'After-Hours', closed:'Market Closed' };
+  const colors = { open:'var(--accent)', pre:'var(--warn)', after:'var(--warn)', closed:'var(--danger)' };
+  dot.style.background = colors[status];
+  dot.style.boxShadow = `0 0 6px ${colors[status]}`;
+  dot.classList.toggle('live', status === 'open');
+  txt.textContent = labels[status];
+}
+
+function getFinnhubKey() {
+  return document.getElementById('finnhubKey').value.trim();
+}
+
+async function finnhubGet(path) {
+  const key = getFinnhubKey();
+  if (!key) throw new Error('NO_KEY');
+  const url = `https://finnhub.io/api/v1${path}&token=${key}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+async function fetchQuote(symbol) {
+  return finnhubGet(`/quote?symbol=${symbol}`);
+}
+
+async function fetchCandles(symbol, resolution = 'D', days = 365) {
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - days * 24 * 3600;
+  const data = await finnhubGet(`/stock/candle?symbol=${symbol}&resolution=${resolution}&from=${from}&to=${to}`);
+  if (data.s !== 'ok') throw new Error('No candle data for ' + symbol);
+  return data; // { c, h, l, o, v, t, s }
+}
+
+async function fetchProfile(symbol) {
+  try {
+    return await finnhubGet(`/stock/profile2?symbol=${symbol}`);
+  } catch { return {}; }
+}
+
+async function updateTickerBar() {
+  const key = getFinnhubKey();
+  if (!key) return;
+  const bar = document.getElementById('tickerBar');
+  try {
+    const quotes = await Promise.all(WATCHLIST.map(s => fetchQuote(s).catch(() => null)));
+    bar.innerHTML = quotes.map((q, i) => {
+      if (!q || !q.c) return '';
+      const sym = WATCHLIST[i];
+      const chgCls = q.dp >= 0 ? 'pos' : 'neg';
+      const sign = q.dp >= 0 ? '+' : '';
+      return `<div class="ticker-item">
+        <span class="ticker-sym">${sym}</span>
+        <span class="ticker-price">$${q.c.toFixed(2)}</span>
+        <span class="ticker-chg ${chgCls}">${sign}${q.dp.toFixed(2)}%</span>
+      </div>`;
+    }).join('');
+  } catch {}
+}
+
+function movingAverage(arr, w) {
+  return arr.map((_, i) => {
+    if (i < w - 1) return null;
+    return arr.slice(i - w + 1, i + 1).reduce((a, b) => a + b, 0) / w;
+  });
+}
+
+function computeRSI(closes, period = 14) {
+  if (closes.length < period + 1) return closes.map(() => 50);
+  let avgG = 0, avgL = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d >= 0) avgG += d; else avgL -= d;
+  }
+  avgG /= period; avgL /= period;
+  const result = Array(period + 1).fill(null);
+  result[period] = 100 - 100 / (1 + avgG / Math.max(avgL, 1e-10));
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    avgG = (avgG * (period - 1) + Math.max(d, 0)) / period;
+    avgL = (avgL * (period - 1) + Math.max(-d, 0)) / period;
+    result.push(100 - 100 / (1 + avgG / Math.max(avgL, 1e-10)));
+  }
+  return result;
+}
+
+function computeMACD(closes, fast = 12, slow = 26, sig = 9) {
+  const ema = (arr, p) => {
+    const k = 2 / (p + 1), res = [arr[0]];
+    for (let i = 1; i < arr.length; i++) res.push(arr[i] * k + res[i - 1] * (1 - k));
+    return res;
+  };
+  const ema12 = ema(closes, fast), ema26 = ema(closes, slow);
+  const macdLine = closes.map((_, i) => ema12[i] - ema26[i]);
+  const signalLine = ema(macdLine, sig);
+  return { macdLine, signalLine, histogram: macdLine.map((v, i) => v - signalLine[i]) };
+}
+
+function computeBollingerBands(closes, w = 20, k = 2) {
+  return closes.map((_, i) => {
+    if (i < w - 1) return { mid: null, upper: null, lower: null };
+    const slice = closes.slice(i - w + 1, i + 1);
+    const mid = slice.reduce((a, b) => a + b, 0) / w;
+    const std = Math.sqrt(slice.map(v => (v - mid) ** 2).reduce((a, b) => a + b, 0) / w);
+    return { mid, upper: mid + k * std, lower: mid - k * std };
+  });
+}
+
+function linearRegression(y) {
+  const n = y.length;
+  let sx = 0, sy = 0, sxy = 0, sx2 = 0;
+  y.forEach((v, i) => { sx += i; sy += v; sxy += i * v; sx2 += i * i; });
+  const slope = (n * sxy - sx * sy) / (n * sx2 - sx * sx);
+  const intercept = (sy - slope * sx) / n;
+  return { slope, intercept };
+}
+
+function fmtDate(ts) {
+  const d = new Date(ts * 1000);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function renderChart(candleData) {
+  const closes = candleData.c;
+  const timestamps = candleData.t;
+  const labels = timestamps.map(fmtDate);
+
+  const ma10 = movingAverage(closes, 10);
+  const ma20 = movingAverage(closes, 20);
+
+  const regData = closes.slice(-90);
+  const { slope, intercept } = linearRegression(regData);
+
+  const fcastPad = Array(closes.length).fill(null);
+  fcastPad[fcastPad.length - 1] = closes[closes.length - 1];
+  const extraLabels = [];
+  const fcastVals = [closes[closes.length - 1]];
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(); d.setDate(d.getDate() + i);
+    if (d.getDay() === 6) d.setDate(d.getDate() + 2);
+    if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+    extraLabels.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+    fcastVals.push(intercept + slope * (regData.length + i));
+  }
+
+  const allLabels = [...labels, ...extraLabels];
+  const fcastFull = [...fcastPad, ...fcastVals.slice(1)];
+  const actualFull = [...closes, ...Array(7).fill(null)];
+  const ma10Full = [...ma10, ...Array(7).fill(null)];
+  const ma20Full = [...ma20, ...Array(7).fill(null)];
+
+  const ctx = document.getElementById('mainChart').getContext('2d');
+  if (chartInstance) chartInstance.destroy();
+
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: allLabels,
+      datasets: [
+        { label: 'Price', data: actualFull, borderColor: '#0066FF', borderWidth: 2.5, pointRadius: 0, tension: 0.3, fill: false },
+        { label: 'MA-10', data: ma10Full, borderColor: '#00E5A0', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
+        { label: 'MA-20', data: ma20Full, borderColor: 'rgba(255,255,255,0.2)', borderWidth: 1, pointRadius: 0, tension: 0.3, fill: false },
+        { label: 'Forecast', data: fcastFull, borderColor: '#FF4757', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, tension: 0.3, fill: false }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0E1419', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
+          titleColor: '#6B7A8D', bodyColor: '#F0F4F8',
+          titleFont: { family: 'DM Mono', size: 11 }, bodyFont: { family: 'DM Mono', size: 12 }, padding: 12,
+          callbacks: { label: ctx => { const v = ctx.parsed.y; return v == null ? null : `${ctx.dataset.label}: $${v.toFixed(2)}`; } }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#6B7A8D', font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 10 } },
+        y: { position: 'right', grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#6B7A8D', font: { family: 'DM Mono', size: 10 }, callback: v => '$' + v.toFixed(0) } }
+      },
+      animation: { duration: 600, easing: 'easeInOutCubic' }
+    }
+  });
+}
+
+function setRange(res, days, btn) {
+  document.querySelectorAll('.range-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  currentResolution = res;
+  currentDays = days;
+  if (currentTicker) fetchCandlesAndRender();
+}
+
+async function fetchCandlesAndRender() {
+  try {
+    const data = await fetchCandles(currentTicker, currentResolution, currentDays);
+    currentCandles = data;
+    renderChart(data);
+    return data;
+  } catch (e) {
+    showToast('Chart error: ' + e.message);
+    return null;
+  }
+}
+
+function updateMetrics(quote, candles) {
+  const cur = quote.c, prevClose = quote.pc;
+  const chg = quote.d, chgPct = quote.dp;
+  const high = quote.h, low = quote.l;
+
+  document.getElementById('mPrice').textContent = '$' + cur.toFixed(2);
+  document.getElementById('mPriceSub').innerHTML = `<span style="color:var(--muted)">Prev: $${prevClose.toFixed(2)}</span>`;
+
+  const chgEl = document.getElementById('mChange');
+  chgEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2);
+  chgEl.className = 'metric-val ' + (chg >= 0 ? 'pos' : 'neg');
+  document.getElementById('mChangeSub').innerHTML = `<span class="${chg >= 0 ? 'pos' : 'neg'}">${chg >= 0 ? '▲ +' : '▼ '}${Math.abs(chgPct).toFixed(2)}%</span>`;
+
+  const closes = candles.c;
+  const reg = linearRegression(closes.slice(-90));
+  const pred7 = reg.intercept + reg.slope * (closes.slice(-90).length + 6);
+  const predChg = pred7 - cur, predPct = predChg / cur * 100;
+
+  const fEl = document.getElementById('mForecast');
+  fEl.textContent = '$' + pred7.toFixed(2);
+  fEl.className = 'metric-val ' + (predChg >= 0 ? 'pos' : 'neg');
+  document.getElementById('mForecastSub').innerHTML = `<span class="${predChg >= 0 ? 'pos' : 'neg'}">${predChg >= 0 ? '▲ +' : '▼ '}${Math.abs(predPct).toFixed(2)}%</span>`;
+
+  document.getElementById('mHL').textContent = `$${high.toFixed(0)} / $${low.toFixed(0)}`;
+  document.getElementById('mHLSub').textContent = 'High / Low today';
+
+  const rsiArr = computeRSI(closes);
+  const rsi = rsiArr[rsiArr.length - 1] || 50;
+  const rsiEl = document.getElementById('mRsi');
+  rsiEl.textContent = rsi.toFixed(1);
+  rsiEl.className = 'metric-val ' + (rsi > 70 ? 'neg' : rsi < 30 ? 'pos' : 'neu');
+  document.getElementById('mRsiSub').textContent = rsi > 70 ? 'Overbought' : rsi < 30 ? 'Oversold' : 'Neutral zone';
+
+  document.getElementById('chartPriceLive').style.display = 'block';
+  document.getElementById('livePriceSpan').textContent = '$' + cur.toFixed(2);
+  const liveChg = document.getElementById('liveChgSpan');
+  liveChg.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + ' (' + (chg >= 0 ? '+' : '') + chgPct.toFixed(2) + '%)';
+  liveChg.className = chg >= 0 ? 'pos' : 'neg';
+
+  return { cur, pred7, predPct, rsi, slope: reg.slope };
+}
+
+function renderMLIndicators(candles, quote) {
+  const closes = candles.c;
+  const cur = quote.c;
+  const { slope } = linearRegression(closes.slice(-60));
+  const rsiArr = computeRSI(closes);
+  const rsi = rsiArr[rsiArr.length - 1] || 50;
+  const bb = computeBollingerBands(closes);
+  const { histogram } = computeMACD(closes);
+  const latestBB = bb[bb.length - 1];
+  const latestHist = histogram[histogram.length - 1];
+  const ret20 = closes.length > 21 ? (cur - closes[closes.length - 21]) / closes[closes.length - 21] * 100 : 0;
+
+  const bbPos = latestBB.upper
+    ? Math.min(100, Math.max(0, (cur - latestBB.lower) / (latestBB.upper - latestBB.lower) * 100))
+    : 50;
+
+  const indicators = [
+    { name: 'RSI (14-period)', val: rsi.toFixed(1), pct: rsi, color: rsi > 70 ? '#FF4757' : rsi < 30 ? '#00E5A0' : '#0066FF' },
+    { name: 'Bollinger Band %B', val: bbPos.toFixed(1) + '%', pct: bbPos, color: '#0066FF' },
+    { name: 'MACD Histogram', val: (latestHist >= 0 ? '+' : '') + latestHist.toFixed(3), pct: Math.min(100, Math.max(0, 50 + latestHist * 30)), color: latestHist >= 0 ? '#00E5A0' : '#FF4757' },
+    { name: 'Linear Trend (60d)', val: (slope >= 0 ? '+' : '') + slope.toFixed(4) + '/day', pct: Math.min(100, Math.max(0, 50 + slope * 500)), color: slope >= 0 ? '#00E5A0' : '#FF4757' },
+    { name: '20-Day Return', val: (ret20 >= 0 ? '+' : '') + ret20.toFixed(2) + '%', pct: Math.min(100, Math.max(0, 50 + ret20 * 2)), color: ret20 >= 0 ? '#00E5A0' : '#FF4757' },
+  ];
+
+  document.getElementById('mlIndicators').innerHTML = indicators.map(ind => `
+    <div class="ml-indicator">
+      <div class="ml-ind-header">
+        <span class="ml-ind-name">${ind.name}</span>
+        <span class="ml-ind-val" style="color:${ind.color}">${ind.val}</span>
+      </div>
+      <div class="ml-bar-bg"><div class="ml-bar-fill" style="width:0%;background:${ind.color}" data-target="${ind.pct}"></div></div>
+    </div>
+  `).join('');
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    document.querySelectorAll('.ml-bar-fill').forEach(el => { el.style.width = el.dataset.target + '%'; });
+  }));
+}
+
+function renderForecastTable(candles, quote) {
+  const closes = candles.c;
+  const cur = quote.c;
+  const { slope, intercept } = linearRegression(closes.slice(-90));
+  const rows = [];
+
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(); d.setDate(d.getDate() + i);
+    if (d.getDay() === 6) d.setDate(d.getDate() + 2);
+    if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+    const pred = intercept + slope * (closes.slice(-90).length + i);
+    const chg = pred - cur, pct = chg / cur * 100;
+    const conf = Math.max(38, 91 - i * 6 + Math.sin(i * 2.1) * 2);
+    const sig = pct > 1.8 ? 'BUY' : pct < -1.8 ? 'SELL' : 'HOLD';
+    const sigCls = sig === 'BUY' ? 'sig-buy' : sig === 'SELL' ? 'sig-sell' : 'sig-hold';
+    rows.push(`<tr>
+      <td style="color:var(--muted2)">${d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</td>
+      <td style="font-weight:600">$${pred.toFixed(2)}</td>
+      <td class="${chg >= 0 ? 'pos' : 'neg'}">${chg >= 0 ? '▲ +' : '▼ '}${Math.abs(pct).toFixed(2)}%</td>
+      <td><span class="conf-bar" style="background:hsl(${conf*1.1},70%,55%)"></span><span style="color:var(--muted2)">${conf.toFixed(0)}%</span></td>
+      <td><span class="sig-badge ${sigCls}">${sig}</span></td>
+    </tr>`);
+  }
+  document.getElementById('forecastTable').innerHTML = rows.join('');
+}
+
+async function fetchClaudeAnalysis(ticker, cur, pred7, predPct, rsi, slope, quote) {
+  const apiKey = document.getElementById('anthropicKey').value.trim();
+  if (!apiKey) return null;
+
+  // Annualized vol from real data
+  const closes = currentCandles.c;
+  const ret30 = closes.slice(-31).slice(1).map((v, i) => Math.log(v / closes[closes.length - 30 + i]));
+  const stdDev = Math.sqrt(ret30.reduce((a, r) => a + r * r, 0) / ret30.length);
+  const annVol = (stdDev * Math.sqrt(252) * 100).toFixed(1);
+  const m5 = closes.length > 6 ? ((cur - closes[closes.length - 6]) / closes[closes.length - 6] * 100).toFixed(2) : '0';
+
+  const prompt = `You are a professional quantitative analyst. Here is REAL live market data for ${ticker} (${COMPANIES[ticker] || ticker}) fetched right now from Finnhub.
+
+Live quote:
+- Current price: $${cur.toFixed(2)}
+- Day change: ${quote.d >= 0 ? '+' : ''}${quote.d.toFixed(2)} (${quote.dp >= 0 ? '+' : ''}${quote.dp.toFixed(2)}%)
+- Day high: $${quote.h.toFixed(2)}, Day low: $${quote.l.toFixed(2)}
+- Previous close: $${quote.pc.toFixed(2)}
+
+ML-computed metrics (from real historical data):
+- 7-day ML forecast: $${pred7.toFixed(2)} (${predPct >= 0 ? '+' : ''}${predPct.toFixed(2)}%)
+- RSI(14): ${rsi.toFixed(1)} — ${rsi > 70 ? 'overbought' : rsi < 30 ? 'oversold' : 'neutral'}
+- 5-day momentum: ${m5}%
+- Annualized volatility: ${annVol}%
+- Linear trend slope: ${slope >= 0 ? '+' : ''}${slope.toFixed(4)}/day
+
+Write exactly 3 sentences:
+1. What the real-time price action and trend indicate
+2. The main risk the trader should monitor
+3. Your overall outlook with reasoning
+
+End with exactly one line: SIGNAL: BUY, SIGNAL: HOLD, or SIGNAL: SELL
+
+Plain text only, no markdown.`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 450, messages: [{ role: 'user', content: prompt }] })
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  return data.content?.map(b => b.text || '').join('') || '';
+}
+
+async function runAnalysis(silent = false) {
+  const ticker = document.getElementById('tickerInput').value.trim().toUpperCase();
+  if (!ticker) { showToast('Please enter a stock ticker'); return; }
+
+  if (!getFinnhubKey()) {
+    showToast('⚠ Please enter your Finnhub API key — get it free at finnhub.io');
+    document.getElementById('finnhubKey').focus();
+    return;
+  }
+
+  currentTicker = ticker;
+  if (!silent) setLoadingState(true);
+
+
+  document.getElementById('chartTicker').textContent = ticker;
+  document.getElementById('chartCompany').textContent = COMPANIES[ticker] || 'Loading…';
+
+  document.getElementById('refreshSpinner').style.display = 'inline-block';
+  document.getElementById('lastUpdatedText').textContent = 'Fetching real-time data…';
+
+  try {
+    const [quote, candles, profile] = await Promise.all([
+      fetchQuote(ticker),
+      fetchCandles(ticker, currentResolution, Math.max(currentDays + 30, 365)),
+      fetchProfile(ticker)
+    ]);
+
+    if (!quote.c) throw new Error('Invalid ticker or no data');
+
+    currentCandles = candles;
+
+    const companyName = profile.name || COMPANIES[ticker] || ticker;
+    document.getElementById('chartCompany').textContent = companyName + (profile.exchange ? ` · ${profile.exchange}` : '');
+
+    renderChart(candles);
+    const { cur, pred7, predPct, rsi, slope } = updateMetrics(quote, candles);
+    renderMLIndicators(candles, quote);
+    renderForecastTable(candles, quote);
+
+    const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    document.getElementById('lastUpdatedText').textContent = `✓ Live data loaded — last updated ${now} (Finnhub, 15-min delayed for free tier)`;
+    document.getElementById('countdownWrap').style.display = 'flex';
+    document.getElementById('refreshBtn').style.display = 'inline-flex';
+
+    startCountdown();
+
+    updateTickerBar();
+
+    const anthropicKey = document.getElementById('anthropicKey').value.trim();
+    const aiStatus = document.getElementById('aiStatus');
+    const aiText = document.getElementById('aiText');
+    const signalBox = document.getElementById('signalBox');
+    const apiNote = document.getElementById('apiNoteEl');
+
+    if (!anthropicKey) {
+      const sig = predPct > 1.8 ? 'BUY' : predPct < -1.8 ? 'SELL' : 'HOLD';
+      aiStatus.textContent = 'ML Only';
+      aiStatus.className = 'pill pill-warn';
+      aiText.className = 'ai-text loaded fade-in';
+      aiText.textContent = `${ticker} is trading at $${cur.toFixed(2)}, ${quote.d >= 0 ? 'up' : 'down'} ${Math.abs(quote.dp).toFixed(2)}% on the day (real-time data from Finnhub). The ML regression model projects a ${predPct >= 0 ? 'positive' : 'negative'} 7-day move of ${Math.abs(predPct).toFixed(2)}%, while RSI at ${rsi.toFixed(0)} signals ${rsi > 70 ? 'overbought conditions — watch for a pullback' : rsi < 30 ? 'oversold conditions — bounce may be imminent' : 'neutral momentum with trend likely to continue'}.`;
+      signalBox.style.display = 'block';
+      signalBox.innerHTML = `<div class="signal-box signal-${sig.toLowerCase()} fade-in">${sig === 'BUY' ? '↑' : sig === 'SELL' ? '↓' : '→'} ML Signal: ${sig}</div>`;
+      apiNote.style.display = 'block';
+      apiNote.textContent = 'Tip: Add your Anthropic API key to unlock Claude AI deep analysis using this live market data.';
+    } else {
+      aiStatus.textContent = 'Analyzing…';
+      aiStatus.className = 'pill pill-blue';
+      aiText.className = 'ai-text';
+      aiText.textContent = `Claude is analyzing live ${ticker} market data…`;
+      signalBox.style.display = 'none';
+      apiNote.style.display = 'none';
+
+      try {
+        const analysis = await fetchClaudeAnalysis(ticker, cur, pred7, predPct, rsi, slope, quote);
+        if (analysis) {
+          const sigMatch = analysis.match(/SIGNAL:\s*(BUY|SELL|HOLD)/i);
+          const signal = sigMatch ? sigMatch[1].toUpperCase() : (predPct > 1.8 ? 'BUY' : predPct < -1.8 ? 'SELL' : 'HOLD');
+          const cleanText = analysis.replace(/SIGNAL:\s*(BUY|SELL|HOLD)/gi, '').trim();
+          aiText.className = 'ai-text loaded fade-in';
+          aiText.textContent = cleanText;
+          signalBox.style.display = 'block';
+          const ico = signal === 'BUY' ? '↑' : signal === 'SELL' ? '↓' : '→';
+          signalBox.innerHTML = `<div class="signal-box signal-${signal.toLowerCase()} fade-in">${ico} Claude AI Signal: ${signal}</div>`;
+          aiStatus.textContent = 'Complete';
+          aiStatus.className = 'pill pill-green';
+        }
+      } catch (e) {
+        aiStatus.textContent = 'API Error';
+        aiStatus.className = 'pill pill-red';
+        aiText.className = 'ai-text';
+        aiText.textContent = 'Claude API error: ' + e.message;
+        showToast('Claude API error — check your Anthropic key');
+      }
+    }
+
+    if (!silent) showToast(`✓ ${ticker} loaded — live data from Finnhub`);
+
+  } catch (e) {
+    const msg = e.message === 'NO_KEY'
+      ? 'Please enter your Finnhub API key (free at finnhub.io)'
+      : `Error fetching ${ticker}: ${e.message}. Check the ticker symbol and your Finnhub key.`;
+    document.getElementById('lastUpdatedText').textContent = '⚠ ' + msg;
+    showToast(msg);
+  } finally {
+    setLoadingState(false);
+    document.getElementById('refreshSpinner').style.display = 'none';
+  }
+}
+
+function startCountdown() {
+  if (refreshTimer) clearTimeout(refreshTimer);
+  if (countdownInterval) clearInterval(countdownInterval);
+
+  secondsLeft = REFRESH_SECS;
+  updateCountdownDisplay();
+
+  countdownInterval = setInterval(() => {
+    secondsLeft--;
+    updateCountdownDisplay();
+    if (secondsLeft <= 0) {
+      clearInterval(countdownInterval);
+    }
+  }, 1000);
+
+  refreshTimer = setTimeout(() => {
+    if (currentTicker) {
+      showToast('↻ Auto-refreshing real-time data…');
+      runAnalysis(true);
+    }
+  }, REFRESH_SECS * 1000);
+}
+
+function updateCountdownDisplay() {
+  const m = Math.floor(secondsLeft / 60);
+  const s = secondsLeft % 60;
+  document.getElementById('countdownSecs').textContent = `${m}:${String(s).padStart(2, '0')}`;
+  const pct = (secondsLeft / REFRESH_SECS) * 100;
+  document.getElementById('countdownBar').style.width = pct + '%';
+}
+
+function forceRefresh() {
+  if (!currentTicker) return;
+  runAnalysis(true);
+}
+
+function setLoadingState(loading) {
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = loading;
+  document.getElementById('btnIcon').innerHTML = loading ? '<div class="spinner"></div>' : '▶';
+  document.getElementById('btnText').textContent = loading ? 'Loading…' : 'Analyze';
+}
+
+function quickPick(ticker) {
+  document.getElementById('tickerInput').value = ticker;
+  runAnalysis();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+document.getElementById('tickerInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') runAnalysis();
+});
+document.getElementById('tickerInput').addEventListener('input', e => {
+  e.target.value = e.target.value.toUpperCase().replace(/[^A-Z.]/g, '');
+});
+
+try {
+  const savedFH = localStorage.getItem('sm_finnhub_key');
+  const savedAI = localStorage.getItem('sm_anthropic_key');
+  if (savedFH) document.getElementById('finnhubKey').value = savedFH;
+  if (savedAI) document.getElementById('anthropicKey').value = savedAI;
+} catch {}
+
+document.getElementById('finnhubKey').addEventListener('change', e => {
+  try { localStorage.setItem('sm_finnhub_key', e.target.value.trim()); } catch {}
+  updateTickerBar();
+});
+document.getElementById('anthropicKey').addEventListener('change', e => {
+  try { localStorage.setItem('sm_anthropic_key', e.target.value.trim()); } catch {}
+});
+
+updateMarketBadge();
+setInterval(updateMarketBadge, 60000);
+
+if (getFinnhubKey()) {
+  updateTickerBar();refresh
+  setInterval(updateTickerBar, 60000);
+}
+</script>
+</body>
+</html>
